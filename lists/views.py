@@ -1,18 +1,31 @@
 from django.shortcuts import redirect, render
-from django.contrib.auth import get_user_model
-from django.views.generic import FormView
+from django.views.generic import FormView, CreateView, DetailView
 
-from lists.forms import ExistingListItemForm, ItemForm, NewListForm
+from lists.forms import ExistingListItemForm, ItemForm
 from lists.models import List
-User = get_user_model()
 
+class HomePageView(FormView):
+    template_name = 'home.html'
+    form_class = ItemForm
+
+
+class NewListView(CreateView):
+    form_class = ItemForm
+    template_name = 'home.html'
+
+    def form_valid(self, form):
+        list_ = List.objects.create()
+        form.save(for_list=list_)
+        return redirect(list_)
 
 def new_list(request):
-    form = NewListForm(data=request.POST)
+    form = ItemForm(data=request.POST)
     if form.is_valid():
-        list_ = form.save(owner=request.user)
+        list_ = List.objects.create()
+        form.save(for_list=list_)
         return redirect(list_)
-    return render(request, 'home.html', {'form': form})
+    else:
+        return render(request, 'home.html', {"form": form})
 
 
 def view_list(request, list_id):
@@ -26,16 +39,12 @@ def view_list(request, list_id):
     return render(request, 'list.html', {'list': list_, "form": form})
 
 
-def my_lists(request, email):
-    owner = User.objects.get(email=email)
-    return render(request, 'my_lists.html', {'owner': owner})
+class ViewAndAddToList(DetailView, CreateView):
+    model = List
+    template_name = 'list.html'
+    form_class = ExistingListItemForm
 
+    def get_form(self):
+        self.object = self.get_object()
+        return self.form_class(for_list=self.object, data=self.request.POST)
 
-def share_list(request, list_id):
-    list_ = List.objects.get(id=list_id)
-    list_.shared_with.add(request.POST['sharee'])
-    return redirect(list_)
-
-class HomePageView(FormView):
-    template_name = 'home.html'
-    form_class = ItemForm
